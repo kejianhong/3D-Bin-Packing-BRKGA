@@ -15,7 +15,7 @@ class PlacementProcedure:
     def __init__(self, bins: List[Bin], items: List[Item], solution: NDArray[np.float_], is_debug: bool = False) -> None:
         self.bins: List[Bin] = bins
         self.items: List[Item] = items
-        self.infeasible_fitness = len(bins) + 1
+        self.infeasible_fitness: int = len(bins) + 1
         self.num_opened_bins: int = 1
         self.unpacked_items: List[Item] = []
         self.is_debug: bool = is_debug
@@ -29,7 +29,7 @@ class PlacementProcedure:
         log.debug(f"Box packing sequence(BPS):\n{self.box_packing_sequence.tolist()}")
         log.debug(f"Vector of box orientations(VBO):\n{self.vector_of_box_orientation.tolist()}")
 
-        self.infeasible: bool = False  # Whether it is possible to pack all items with the bin number.
+        self.infeasible: bool = False  # Whether it is possible to place all items with the bin number.
         self._placeItem()
 
     def _placeItem(self) -> None:
@@ -37,40 +37,40 @@ class PlacementProcedure:
         Place items into bins.
         """
         for item_index, item in enumerate(self.sorted_items):
-            log.info(f"Select box: {item.partno}")
+            log.info(f"Select box: {item.partno}.")
             # Bin and EMS selection.
             selected_bin_index = None
             selected_EMS = None
-            is_packed = False
+            is_placed = False
             for bin_index in range(self.num_opened_bins):
-                # Select the unused EMS using distance to front-top-right center.
+                # Select the remaining EMSs using distance to front-top-right center.
                 for available_EMS in self.computeDistanceToFrontTopRightCenter(item, bin_index):
                     selected_bin_index = bin_index
                     selected_EMS = available_EMS
                     log.info(f"Select EMS {[ai.tolist() for ai in available_EMS]} from the [{bin_index}] bin.")
                     # Box orientation selection.
                     self.selectBoxOrientation(float(self.vector_of_box_orientation[item_index]), item, selected_EMS)
-                    # Fix the item flows in the air.
+                    # Fix the item that flows in the air.
                     if self.bins[selected_bin_index].fixAirPlace(item, selected_EMS):
-                        log.debug(f"Can place the [{item.partno}] in the EMS {available_EMS}.")
-                        is_packed = True
+                        log.debug(f"Can place the [{item.partno}] in the EMS {available_EMS.tolist()}.")
+                        is_placed = True
                         break
-                if is_packed:
+                if is_placed:
                     break
 
             # Open new empty bin.
-            if not is_packed:
+            if not is_placed:
                 if self.num_opened_bins + 1 > len(self.bins):
                     self.infeasible = True
                     self.unpacked_items.append(item)
-                    log.warning(f"No more bin to open. Bin number is [{self.num_opened_bins}]")
+                    log.warning(f"No more bin to open. Bin number is [{self.num_opened_bins}].")
                     continue
 
                 selected_bin_index = self.num_opened_bins
                 self.num_opened_bins += 1
-                # Put the item into the origin of the new bin.
+                # Place the item into the origin of the new bin.
                 selected_EMS = self.bins[selected_bin_index].EMSs[0]
-                log.warning(f"No available bin, select EMS from the [{selected_bin_index}-th] new bin.")
+                log.warning(f"No available bin, select the origin of the [{selected_bin_index}-th] new bin as the EMS.")
 
             # Elimination rule for different process.
             min_vol, min_dim = self.getMinVolAndDimOfRemainingItems(self.sorted_items[item_index + 1 :])
@@ -79,7 +79,7 @@ class PlacementProcedure:
             # pack the box to the bin & update state information
             assert selected_EMS is not None, f"{selected_EMS = }"
             assert selected_bin_index is not None, f"{selected_bin_index = }"
-            self.bins[selected_bin_index].update(item, min_vol, min_dim)
+            self.bins[selected_bin_index].updateEMS(item, min_vol, min_dim)
 
             log.info(f"Add box to bin: {selected_bin_index}")
             log.info(f"EMSs:\n{self.bins[selected_bin_index].getEMSs()}")
@@ -90,31 +90,34 @@ class PlacementProcedure:
                 plt.show()
         log.debug(f"Number of used bins: {self.num_opened_bins}")
 
-    def computeDistanceToFrontTopRightCenter(self, item: Item, bin_index: int) -> List[List[NDArray[np.float_]]]:
+    def computeDistanceToFrontTopRightCenter(self, item: Item, bin_index: int) -> List[NDArray[np.float_]]:
         """
-        Compute the distance of the item to the front-Top-right corner of the bin according to the DFRTC algorithm.
-        However, the item may flow in the air. Therefore, return the available EMS as soon as possible.
-        :param item: The item to pack.
+        Compute the distance of the item to the front-top-right corner of the bin according to the DFRTC algorithm.
+        However, the item may flow in the air. Therefore, return the available EMS as soon as possible once we find one.
+        Because we will fix the position of the item after then.
+        :param item: The item to place.
         :param bin_index: The index of the bin used to pack the item.
-        :return: If the item can place into the bin, return the ems of the used bin.
+        :return: If the item can place into the bin, return the corresponding EMS of the used bin.
         """
-        available_EMSs: List[List[NDArray[np.float_]]] = []
-        for unused_EMS in deepcopy(self.bins[bin_index].EMSs):
+        available_EMSs: List[NDArray[np.float_]] = []
+        curr_EMSs = self.bins[bin_index].EMSs
+        randon_index = np.random.choice(np.arange(0, curr_EMSs.shape[0]), size=curr_EMSs.shape[0], replace=False)
+        for unplaced_items in deepcopy(curr_EMSs[randon_index]):  # Add more random otherwise would always explore the old EMS first.
             rotate = RT_ALL if item.updown == True else RT_NotUpdown
             for rt_type in rotate:
                 item.rotation_type = rt_type
-                if self.putItemIntoBin(item, unused_EMS):
-                    available_EMSs.append(unused_EMS)
-                    break
-        sorted_available_EMSs = sorted(available_EMSs, key=lambda x: np.prod(x[1] - x[0]), reverse=True)
+                if self.putItemIntoBin(item, unplaced_items):
+                    available_EMSs.append(unplaced_items)
+                    break  # If we want to find all available EMSs, the comment this line.
+        sorted_available_EMSs = sorted(available_EMSs, key=lambda x: np.prod(x[3:] - x[:3]), reverse=True)
         return sorted_available_EMSs
 
-    def selectBoxOrientation(self, vector_of_box_orientation: float, item: Item, selected_EMS: List[NDArray[np.float_]]) -> None:
+    def selectBoxOrientation(self, vector_of_box_orientation: float, item: Item, selected_EMS: NDArray[np.float_]) -> None:
         """
         Select the box orientation from the available orientations.
         :param vector_of_box_orientation: The value between [0,1] which is used to choose the orientation.
-        :param item: The box dimension.
-        :param selected_EMS: The empty maximum space.
+        :param item: The box to place.
+        :param selected_EMS: The empty maximum space where to place the item at its origin.
         """
         available_box_orientations: List[RotationType] = []
         rotate = RT_ALL if item.updown == True else RT_NotUpdown
@@ -124,47 +127,39 @@ class PlacementProcedure:
                 available_box_orientations.append(rt_type)
         # Choose box orientation based on available box orientation vector.
         item.rotation_type = available_box_orientations[int(np.ceil(vector_of_box_orientation * len(available_box_orientations)) - 1)]
-        log.info(f"Select VBO: {item.rotation_type} from {available_box_orientations = }, vector: {vector_of_box_orientation}")
+        log.info(f"Select VBO: {item.rotation_type} from {available_box_orientations = }, vector: {vector_of_box_orientation}.")
 
     @staticmethod
-    def putItemIntoBin(box: Item, EMS: List[NDArray[np.float_]]) -> bool:
+    def putItemIntoBin(box: Item, EMS: NDArray[np.float_]) -> bool:
         """
         Check whether the box can put into the EMS at its origin.
         :param box: Box to pack.
         :param EMS: The empty maximal space.
         """
-        if np.any((np.array(box.getDimension()) - (EMS[1] - EMS[0])) > 0):
+        if np.any((np.array(box.getDimension()) - (EMS[3:] - EMS[:3])) > 0):
             return False
         return True
 
     @staticmethod
-    def getMinVolAndDimOfRemainingItems(remaining_boxes: List[Item]) -> Tuple[int, int]:
+    def getMinVolAndDimOfRemainingItems(unplaced_items: List[Item]) -> Tuple[float, float]:
         """
-        Compute the minimum volume and dimension of the unpacked items.
-        :param remaining_boxes: The unpacked items.
-        :return: Minimum volume and dimension.
+        Compute the minimum volume and dimension of the unplaced items.
+        :param unplaced_items: The unplaced items.
         """
-        if len(remaining_boxes) == 0:
-            return 0, 0
+        if len(unplaced_items) == 0:
+            return 0.0, 0.0
 
-        min_vol = np.inf
-        min_dim = np.inf
-        for box in remaining_boxes:
-            box_size = box.getDimension()
-            # Minimum dimension.
-            dim = np.min(box_size)
-            if dim < min_dim:
-                min_dim = dim
-
-            # Minimum volume.
-            vol = int(np.prod(box_size))
-            if vol < min_vol:
-                min_vol = vol
-        return int(min_vol), int(min_dim)
+        dimension = np.vstack([item.getDimension() for item in unplaced_items])
+        min_dim = np.min(dimension)
+        min_vol = np.min(np.prod(dimension, axis=1))
+        return float(min_vol), float(min_dim)
 
     def evaluateSolution(self) -> float:
         """
         Evaluate the fitness of the solution.
+        If it is impossible to place all items into the given bins, the fitness is equal to [bin number + 1 + unplaced volume ratio].
+        If it is possible to place all items into the given bins, the fitness is equal to [open bin umber + 1 - the least placed volume ratio of the bin].
+        # FIXME: Distinguish the cases which can put all item into the bins to find a  better solution.
         """
         if self.infeasible:
             unpacked_Volume_ratio = float(np.sum([unpacked_item.getVolume() for unpacked_item in self.unpacked_items])) / float(np.sum([bin.getVolume() for bin in self.bins]))
@@ -203,7 +198,7 @@ class BRKGA:
         self.num_gene: int = 2 * self.num_item
         self.num_elites: int = int(num_elites)
         self.num_mutants: int = int(num_mutants)
-        assert 0 <= eliteCProb <= 1, f"The value should be between [0,1]."
+        assert 0 <= eliteCProb <= 1, f"The value should be between [0, 1]."
         # The prespecified probability which decides the i-th gene is inherited from the elite or the non-elite parents.
         self.eliteCProb: float = eliteCProb
 
@@ -221,7 +216,7 @@ class BRKGA:
         :param population: Each row represents an individual.
         :return: The fitness of the population.
         """
-        fitness_list = []
+        fitness_list: List[float] = []
         bins_list: List[List[Bin]] = []
         unpacked_item_list: List[List[Item]] = []
         for solution in population:
@@ -276,12 +271,12 @@ class BRKGA:
         """
         population = np.random.uniform(low=0.0, high=1.0, size=(self.num_individuals, self.num_gene))  # Each row represents an individual.
         fitness_list, bin_list, unpacked_item_list = self.calFitness(population)
-        log.info(f"Initial Population: shape = [{population.shape}], Best Fitness = [{max(fitness_list)}]")
+        log.info(f"Initial Population: shape = [{population.shape}], Best Fitness = [{max(fitness_list)}].")
         return population, fitness_list, bin_list, unpacked_item_list
 
     def fit(self, patient: int = 4) -> BRKGA_Status:
         """
-        Generate the 3D bin packing result by biased random key generic algorithm.
+        Generate the 3D bin packing result by biased random key generic algorithm (BRKGA).
         :param patient: When the current generation index minus best generation index is larget than the patient index, it means the iteration has reach local optimization.
         :return: Biased random key generic algorithm result.
         """

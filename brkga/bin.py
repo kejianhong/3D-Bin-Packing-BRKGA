@@ -57,147 +57,130 @@ def combineLineSegment(line_segment: List[List[float]]) -> List[List[float]]:
 
 class Bin:
     def __init__(self, partno: str, WHD: Tuple[float, float, float], support_surface_ratio: float) -> None:
-        self.partno = partno
+        self.partno: str = partno
         self.items: List[Item] = []
         self.width: float = WHD[0]
         self.height: float = WHD[1]
         self.depth: float = WHD[2]
         self.dimensions: Tuple[float, float, float] = WHD
-        self.EMSs: List[List[NDArray[np.float_]]] = [[np.array((0, 0, 0)), np.array(WHD)]]  # The ems (left-back-down, right-front-up) of the empty maximal space.
-        self.fit_items: NDArray[np.float_] = np.array([[0, WHD[0], 0, WHD[1], 0, 0]])  # The ems (left-back-down, right-front-up) of the items placed in the bin.
-        assert 0 < support_surface_ratio < 1, f"Should be in [0, 1]."
+        self.EMSs: NDArray[np.float_] = np.array([[0, 0, 0, WHD[0], WHD[1], WHD[2]]])  # The ems (x, y, z, x+w, y+h, z+d) of the left-back-down and right-front-up corners of the empty maximal space.
+        self.fit_items: NDArray[np.float_] = np.array([[0, WHD[0], 0, WHD[1], 0, 0]])  # The ems (x, x+w, y, y+h, z, z+d) of the left-back-down and right-front-up corners of the items placed in the bin.
+        assert 0 < support_surface_ratio <= 1, f"Should be in [0, 1]."
         self.support_surface_ratio = support_surface_ratio
-
-        log.info(f"Init EMSs: {self.EMSs}")
-
-    def __getitem__(self, index: int) -> List[NDArray[np.float_]]:
-        return self.EMSs[index]
-
-    def __len__(self) -> int:
-        return len(self.EMSs)
+        log.info(f"Initial EMSs:\n{self.getEMSs()}")
 
     def getVolume(self) -> float:
+        """
+        Compute the volume of the bin.
+        """
         return self.width * self.height * self.depth
 
-    def update(
-        self,
-        box: Item,
-        min_vol: int = 1,
-        min_dim: int = 1,
-    ) -> None:
+    def updateEMS(self, item: Item, min_vol: float, min_dim: float) -> None:
         """
-        Update unused EMS of the bin according to the box.
-        :param box: The dimension of the box which can pack into the bin.
-        :param min_vol: Minimal volume of all the unpacked boxes.
-        :param min_dim: Minimal dimension of all the unpacked boxes.
+        Update the remaining EMSs of the bin according to the new placed item.
+        :param item: The new placed item.
+        :param min_vol: Minimal volume of all the unplaced items.
+        :param min_dim: Minimal dimension of all the unplaced items.
         """
-        # 1. Place box in an EMS.
-        x, y, z = box.position  # Should not use the `selected_EMS` bacause we modify the position of the item.
-        w, h, d = box.getDimension()
-        self.items.append(box)
-        item_ems = [np.array([x, y, z]), np.array([x + w, y + h, z + d])]
-        log.info(f"EMS of the packed items: {list(map(tuple, item_ems))}")
+        # Place the item into the bin.
+        x, y, z = item.position  # Should not use the `selected_EMS` because we modify the position of the item.
+        w, h, d = item.getDimension()
+        self.items.append(item)
+        item_ems: NDArray[np.float_] = np.array([x, y, z, x + w, y + h, z + d])
+        log.info(f"EMS of the placed items:\n{item_ems.tolist()}, size: {item.getDimension()}")
 
-        # 2. Generate new EMSs resulting from the intersection of the box.
-        all_EMS_index = list(range(len(self.EMSs)))
-        overlapped_EMS_index: List[int] = []
-        new_EMS_list: List[List[NDArray[np.float_]]] = []
-        original_EMSs = deepcopy(self.EMSs)
-        for unused_EMS_index, unused_EMS in enumerate(original_EMSs):  # Should use `deepcopy` because we would modify the `self.EMS` in the for loop.
-            if self.checkInscribed(unused_EMS, item_ems):
-                overlapped_EMS_index.append(unused_EMS_index)
-                self.eliminateEMS(list(set(all_EMS_index) - set(overlapped_EMS_index)), original_EMSs)
-                continue
-            if self.checkOverlapped(item_ems=item_ems, unused_EMS=unused_EMS):
-                # Eliminate overlapped EMS.
-                overlapped_EMS_index.append(unused_EMS_index)
-                self.eliminateEMS(list(set(all_EMS_index) - set(overlapped_EMS_index)), original_EMSs)
-                log.info(f"Remove overlapped EMS: {list(map(tuple, unused_EMS))}\nEMSs left: {list(map(lambda x: list(map(tuple, x)), self.EMSs))}")
+        # Eliminate the remaining EMSs by check whether the EMS is inscribed or overlapped with the current item.
+        inscribed_mask = self.checkInscribed(self.EMSs, np.array([item_ems]))
+        log.debug(f"Remove inscribed EMSs:\n{self.EMSs[inscribed_mask].tolist()}")
+        self.EMSs = self.EMSs[np.logical_not(inscribed_mask)]
+        overlapped_mask = self.checkOverlapped(item_ems, self.EMSs)
+        overlapped_EMSs = deepcopy(self.EMSs[overlapped_mask])
+        log.debug(f"Remove overlapped EMSs:\n{overlapped_EMSs.tolist()}")
+        self.EMSs = self.EMSs[np.logical_not(overlapped_mask)]
+        log.info(f"Remaining EMSs after removing the inscribed and overlapped EMSs:\n{self.getEMSs()}")
 
-                # Add 6 new EMSs in 3 dimensions.
-                x1, y1, z1 = unused_EMS[0]
-                x2, y2, z2 = unused_EMS[1]
-                x3, y3, z3 = item_ems[0]
-                x4, y4, z4 = item_ems[1]
-                new_EMSs = [
-                    [np.array((x4, y1, z1)), np.array((x2, y2, z2))],  # front EMS
-                    [np.array((x1, y4, z1)), np.array((x2, y2, z2))],  # right EMS
-                    [np.array((x1, y1, z4)), np.array((x2, y2, z2))],  # up EMS
-                    [np.array((x1, y1, z1)), np.array((x3, y2, z2))],  # back EMS
-                    [np.array((x1, y1, z1)), np.array((x2, y3, z2))],  # left EMS
-                    [np.array((x1, y1, z1)), np.array((x2, y2, z3))],  # down EMS
+        # Generate new EMSs from the intersection of the item and the overlapped EMSs.
+        for overlapped_EMS in overlapped_EMSs:
+            # Add 6 new EMSs in 3 dimensions.
+            x1, y1, z1, x2, y2, z2 = overlapped_EMS
+            x3, y3, z3, x4, y4, z4 = item_ems
+            new_EMSs = np.vstack(
+                [
+                    np.array([x4, y1, z1, x2, y2, z2]),  # front EMS
+                    np.array([x1, y4, z1, x2, y2, z2]),  # right EMS
+                    np.array([x1, y1, z4, x2, y2, z2]),  # up EMS
+                    np.array([x1, y1, z1, x3, y2, z2]),  # back EMS
+                    np.array([x1, y1, z1, x2, y3, z2]),  # left EMS
+                    np.array([x1, y1, z1, x2, y2, z3]),  # down EMS
                 ]
-                for new_EMS in new_EMSs:
-                    log.debug(f"New EMS {new_EMS}.")
-                    new_EMS_size = new_EMS[1] - new_EMS[0]
-                    if np.any(new_EMS_size <= 0):
-                        log.debug(f"Impossible new EMS {new_EMS_size.tolist()} because there must be at least one dimension is negative.")
-                        continue
+            )
+            new_EMSs_size = new_EMSs[:, 3:] - new_EMSs[:, :3]
+            # Use `DELTA` to avoid the volume or the dimension is equal to zero when placing the last item.
+            big_vol_EMS_index = np.prod(new_EMSs_size, axis=1) >= (min_vol if min_vol > 0 else DELTA)  # Do not add new EMS smaller than the volume of remaining items.
+            big_dim_EMS_index = np.min(new_EMSs_size, axis=1) >= (min_dim if min_dim > 0 else DELTA)  # Do not add new EMS whose smallest dimension is smaller than the smallest dimension of remaining items.
+            log.debug(f"Small volume EMS:\n{new_EMSs[np.logical_not(big_vol_EMS_index)]}")
+            log.debug(f"Small dimension EMS:\n{new_EMSs[np.logical_not(big_vol_EMS_index)]}")
+            index = big_vol_EMS_index & big_dim_EMS_index
+            new_EMSs = new_EMSs[index]
 
-                    # 3. Eliminate new EMSs which are totally inscribed by other EMSs.
-                    is_inscribed = False
-                    for other_EMS in self.EMSs:
-                        if self.checkInscribed(new_EMS, other_EMS):
-                            is_inscribed = True
-                            log.info(f"New EMS [{list(map(tuple, new_EMS))}] is totally inscribed by [{list(map(tuple, other_EMS))}]")
-                            break
-                    if is_inscribed:
-                        continue
+            if new_EMSs.size > 0:
+                # Eliminate new EMSs which are totally inscribed by the remaining EMSs.
+                log.debug(f"New available EMSs candidates:\n{new_EMSs.tolist()}")
+                if self.EMSs.size == 0:
+                    self.EMSs = new_EMSs
+                else:
+                    new_EMSs_index = np.logical_not(self.checkInscribed(new_EMSs, self.EMSs))
+                    new_EMSs = new_EMSs[new_EMSs_index]
+                    if new_EMSs.size > 0:
+                        remaining_EMS_index = np.logical_not(self.checkInscribed(self.EMSs, new_EMSs))
+                        self.EMSs = self.EMSs[remaining_EMS_index]
+                        if self.EMSs.size > 0:
+                            self.EMSs = np.vstack([self.EMSs, new_EMSs])
+                        log.info(f"Successfully added new EMS:\n{new_EMSs.tolist()}")
 
-                    # 4. Do not add new EMS smaller than the volume of remaining boxes
-                    if np.min(new_EMS_size) < min_dim:
-                        log.info(f"New EMS size = {new_EMS_size}, whose dimension too small than {min_dim}.")
-                        continue
-
-                    # 5. Do not add new EMS having smaller dimension of the smallest dimension of remaining boxes
-                    if np.prod(new_EMS_size) < min_vol:
-                        log.info(f"New EMS size = {new_EMS_size}, whose volume too small than {min_vol}.")
-                        continue
-
-                    new_EMS_list.append(new_EMS)
-                    log.info(f"Successfully add new EMS: {list(map(tuple, new_EMS))}")
-
-        self.EMSs = self.EMSs + new_EMS_list
         log.warning(f"Remaining {len(self.EMSs)} EMSs:\n{self.getEMSs()}")
 
     @staticmethod
-    def checkOverlapped(item_ems: List[NDArray[np.float_]], unused_EMS: List[NDArray[np.float_]]) -> bool:
+    def checkOverlapped(item_ems: NDArray[np.float_], remaining_EMS: NDArray[np.float_]) -> NDArray[np.bool_]:
         """
-        Check whether two EMSs are overlapped with each other.
-        :param item_ems: The ems of the packed item.
-        :param unused_EMS: The unused EMS of the bin.
+        Check whether the remaining EMSs of the bin is overlapped with the placed item.
+        :param item_ems: The ems of the placed item.
+        :param remaining_EMS: The remaining EMSs of the bin.
         """
-        if np.all(item_ems[1] >= unused_EMS[0]) and np.all(item_ems[0] <= unused_EMS[1]):
-            return True
-        return False
+        row, _ = remaining_EMS.shape
+        # assert row > 0, f"Row should larger than 0, now [{row = }]."  # FIXME: when the `remaining_EMS` is an empty array, will return an empty array.
+        item_ems_repeat = np.tile(item_ems, (row, 1))
+        mask: NDArray[np.bool_] = np.all(item_ems_repeat[:, 3:] >= remaining_EMS[:, :3], axis=1) & np.all(item_ems_repeat[:, :3] <= remaining_EMS[:, 3:], axis=1)
+        return mask
 
     @staticmethod
-    def checkInscribed(EMS1: List[NDArray[np.float_]], EMS2: List[NDArray[np.float_]]) -> bool:
+    def checkInscribed(ems1: NDArray[np.float_], ems2: NDArray[np.float_]) -> NDArray[np.bool_]:
         """
-        Check whether EMS1 is inscribed by EMS2.
-        :param EMS1: The first EMS.
-        :param EMS2: The second EMS.
+        Check whether ems1 is inscribed by ems2. The order of the parameters is important.
+        :param ems1: The first EMS.
+        :param ems2: The second EMS.
         """
-        if np.all(EMS2[0] <= EMS1[0]) and np.all(EMS1[1] <= EMS2[1]):
-            return True
-        return False
+        row1, _ = ems1.shape
+        row2, _ = ems2.shape
+        assert row1 * row2 > 0, f"All shape should larger than 0: {row1 = }, {row2 = }."
+        ems1_repeat = np.repeat(ems1, row2, axis=0).reshape(row1, row2, -1)
+        ems2_repeat = np.tile(ems2, (row1, 1, 1))
+        diff = ems2_repeat - ems1_repeat
+        mask: NDArray[np.bool_] = np.any((np.all(diff[:, :, :3] <= 0, axis=2) & np.all(diff[:, :, 3:] >= 0, axis=2)), axis=1)
+        return mask
 
-    def eliminateEMS(self, indexes: List[int], original_EMS: List[List[NDArray[np.float_]]]) -> None:
+    def getEMSs(self) -> List[np.float_]:
         """
-        Eliminate EMS which is overlapped with the box packed into the bin.
-        :param indexes:
-        :param original_EMS:
+        Return the remaining EMSs of the bin.
         """
-        self.EMSs = [original_EMS[i] for i in indexes]
-
-    def getEMSs(self) -> List[Tuple[int, ...]]:
-        return list(map(lambda x: tuple(x[1] - x[0]), self.EMSs))
+        remaining_EMSs_list: List[np.float_] = self.EMSs.tolist()
+        return remaining_EMSs_list
 
     def calculateUtilizationRate(self) -> float:
         """
         Calculate the utilization rate of the bin.
         """
-        return float(np.sum([np.prod(item[1::2] - item[::2]) for item in self.fit_items]) / np.prod(self.dimensions))
+        return float(np.sum([np.prod(item[1::2] - item[::2]) for item in self.fit_items]) / np.prod(np.array(self.dimensions), axis=0))
 
     def checkDepth(self, unfix_point: List[float]) -> Tuple[float, bool]:
         """
@@ -258,8 +241,14 @@ class Bin:
 
         return unfix_point[2], False
 
-    def fixAirPlace(self, item: Item, selected_EMS: List[NDArray[np.float_]]) -> bool:
-        x, y, z = selected_EMS[0]
+    def fixAirPlace(self, item: Item, selected_EMS: NDArray[np.float_]) -> bool:
+        """
+        Fix the item in the air and check the stability of the placed item.
+        :param item: The item to place.
+        :param selected_EMS: The EMS whose origin the item is placed into at first.
+        """
+        x, y, z = selected_EMS[:3]
+        log.debug(f"Item position before fix: {selected_EMS[:3].tolist()}.")
         w, h, d = item.getDimension()
         while True:
             # fix height
@@ -269,6 +258,7 @@ class Bin:
             # fix depth
             z, is_z_change = self.checkDepth([x, x + w, y, y + h, z, z + d])
             if not (is_x_change | is_y_change | is_z_change):
+                log.debug(f"The position of the item will not be changed.")
                 break
         item_area_lower = int(w * h)
         # Cal the surface area of the underlying support.
@@ -309,4 +299,5 @@ class Bin:
             axis=0,
         )
         item.position = [x, y, z]
+        log.debug(f"Item position after fix: {item.position}.")
         return True

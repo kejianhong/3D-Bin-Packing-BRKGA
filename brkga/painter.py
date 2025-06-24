@@ -151,8 +151,8 @@ class Painter:
         self._plotCube(axGlob, 0, 0, 0, self.width, self.height, self.depth, color="black", mode=1, linewidth=2)
 
         for ems in self.remainedEMSs:
-            x, y, z = ems[0]
-            [w, h, d] = ems[1] - ems[0]
+            x, y, z = ems[:3]
+            [w, h, d] = ems[3:] - ems[:3]
             self._plotCube(axGlob, x, y, z, w, h, d, color="red", mode=2, fontsize=fontsize, alpha=alpha)
 
         plt.title(title)
