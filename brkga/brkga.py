@@ -12,7 +12,7 @@ from .painter import Painter
 
 
 class PlacementProcedure:
-    def __init__(self, bins: List[Bin], items: List[Item], solution: NDArray[np.float_], is_debug: bool = False) -> None:
+    def __init__(self, bins: List[Bin], items: List[Item], solution: NDArray[np.float64], is_debug: bool = False) -> None:
         self.bins: List[Bin] = bins
         self.items: List[Item] = items
         self.infeasible_fitness: int = len(bins) + 1
@@ -22,7 +22,7 @@ class PlacementProcedure:
 
         # Decode the gene in the solution.
         self.box_packing_sequence: NDArray[np.int_] = np.argsort(solution[: len(self.items)])
-        self.vector_of_box_orientation: NDArray[np.float_] = solution[len(self.items) :]
+        self.vector_of_box_orientation: NDArray[np.float64] = solution[len(self.items) :]
         self.sorted_items: List[Item] = [self.items[index] for index in self.box_packing_sequence]
 
         log.debug(f"All sorted items:\n{[item.partno for item in self.items]}")
@@ -99,7 +99,7 @@ class PlacementProcedure:
         :param bin_index: The index of the bin used to pack the item.
         :return: If the item can place into the bin, return the corresponding EMS of the used bin.
         """
-        available_EMSs: List[NDArray[np.float_]] = []
+        available_EMSs: List[NDArray[np.float64]] = []
         curr_EMSs = self.bins[bin_index].EMSs
         randon_index = np.random.choice(np.arange(0, curr_EMSs.shape[0]), size=curr_EMSs.shape[0], replace=False)
         for unplaced_items in deepcopy(curr_EMSs[randon_index]):  # Add more random otherwise would always explore the old EMS first.
@@ -112,7 +112,7 @@ class PlacementProcedure:
         sorted_available_EMSs = sorted(available_EMSs, key=lambda x: np.prod(x[3:] - x[:3]), reverse=True)
         return sorted_available_EMSs
 
-    def selectBoxOrientation(self, vector_of_box_orientation: float, item: Item, selected_EMS: NDArray[np.float_]) -> None:
+    def selectBoxOrientation(self, vector_of_box_orientation: float, item: Item, selected_EMS: NDArray[np.float64]) -> None:
         """
         Select the box orientation from the available orientations.
         :param vector_of_box_orientation: The value between [0,1] which is used to choose the orientation.
@@ -130,7 +130,7 @@ class PlacementProcedure:
         log.info(f"Select VBO: {item.rotation_type} from {available_box_orientations = }, vector: {vector_of_box_orientation}.")
 
     @staticmethod
-    def putItemIntoBin(box: Item, EMS: NDArray[np.float_]) -> bool:
+    def putItemIntoBin(box: Item, EMS: NDArray[np.float64]) -> bool:
         """
         Check whether the box can put into the EMS at its origin.
         :param box: Box to pack.
@@ -203,14 +203,14 @@ class BRKGA:
         self.eliteCProb: float = eliteCProb
 
         # Result
-        self.best_solution: NDArray[np.float_] = np.array([])
+        self.best_solution: NDArray[np.float64] = np.array([])
         self.best_fitness: float = -1.0
         self.best_bins: List[Bin] = []
         self.best_unpacked_item: List[Item] = []
         self.fitness_mean_history: List[float] = []
         self.fitness_min_history: List[float] = []
 
-    def calFitness(self, population: NDArray[np.float_]) -> Tuple[List[float], List[List[Bin]], List[List[Item]]]:
+    def calFitness(self, population: NDArray[np.float64]) -> Tuple[List[float], List[List[Bin]], List[List[Item]]]:
         """
         Calculate the fitness of all the individuals by decoding the biased random key element.
         :param population: Each row represents an individual.
@@ -228,9 +228,9 @@ class BRKGA:
 
     def separatePopulation(
         self,
-        population: NDArray[np.float_],
+        population: NDArray[np.float64],
         fitness_list: List[float],
-    ) -> Tuple[NDArray[np.float_], NDArray[np.float_], List[float]]:
+    ) -> Tuple[NDArray[np.float64], NDArray[np.float64], List[float]]:
         """
         Separate the population into elite and non-elite subpopulation in order. Calculate the fitness of the elite subpopulation.
         :param population: The population.
@@ -239,7 +239,7 @@ class BRKGA:
         sorted_index = np.argsort(fitness_list)
         return population[sorted_index[: self.num_elites]], population[sorted_index[self.num_elites :]], np.array(fitness_list)[sorted_index[: self.num_elites]].tolist()
 
-    def crossover(self, elite: NDArray[np.float_], non_elite: NDArray[np.float_]) -> NDArray[np.float_]:
+    def crossover(self, elite: NDArray[np.float64], non_elite: NDArray[np.float64]) -> NDArray[np.float64]:
         """
         Choose the gene from either elite or non_elite parents for each gene of the offspring according to the elite probability.
         :param elite: The elite individual.
@@ -248,7 +248,7 @@ class BRKGA:
         """
         return np.array([elite[gene_index] if np.random.uniform(low=0.0, high=1.0) < self.eliteCProb else non_elite[gene_index] for gene_index in range(self.num_gene)])
 
-    def mating(self, elites: NDArray[np.float_], non_elites: NDArray[np.float_]) -> NDArray[np.float_]:
+    def mating(self, elites: NDArray[np.float64], non_elites: NDArray[np.float64]) -> NDArray[np.float64]:
         """
         Generate all the offsprings by crossover from the elite and non-elite parents.
         :param elites: The elite subpopulation.
@@ -258,14 +258,14 @@ class BRKGA:
         num_offspring = self.num_individuals - self.num_elites - self.num_mutants
         return np.array([self.crossover(elites[np.random.choice(elites.shape[0])], non_elites[np.random.choice(non_elites.shape[0])]) for _ in range(num_offspring)])
 
-    def mutants(self) -> NDArray[np.float_]:
+    def mutants(self) -> NDArray[np.float64]:
         """
         Generate the mutations to increase the variegation in the offsprings.
         :return: All the offsprings by mutation.
         """
         return np.random.uniform(low=0.0, high=1.0, size=(self.num_mutants, self.num_gene))
 
-    def _initializeBRKGA(self) -> Tuple[NDArray[np.float_], List[float], List[List[Bin]], List[List[Item]]]:
+    def _initializeBRKGA(self) -> Tuple[NDArray[np.float64], List[float], List[List[Bin]], List[List[Item]]]:
         """
         Initialize the population and fitness.
         """

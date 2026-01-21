@@ -63,8 +63,8 @@ class Bin:
         self.height: float = WHD[1]
         self.depth: float = WHD[2]
         self.dimensions: Tuple[float, float, float] = WHD
-        self.EMSs: NDArray[np.float_] = np.array([[0, 0, 0, WHD[0], WHD[1], WHD[2]]])  # The ems (x, y, z, x+w, y+h, z+d) of the left-back-down and right-front-up corners of the empty maximal space.
-        self.fit_items: NDArray[np.float_] = np.array([[0, WHD[0], 0, WHD[1], 0, 0]])  # The ems (x, x+w, y, y+h, z, z+d) of the left-back-down and right-front-up corners of the items placed in the bin.
+        self.EMSs: NDArray[np.float64] = np.array([[0, 0, 0, WHD[0], WHD[1], WHD[2]]])  # The ems (x, y, z, x+w, y+h, z+d) of the left-back-down and right-front-up corners of the empty maximal space.
+        self.fit_items: NDArray[np.float64] = np.array([[0, WHD[0], 0, WHD[1], 0, 0]])  # The ems (x, x+w, y, y+h, z, z+d) of the left-back-down and right-front-up corners of the items placed in the bin.
         assert 0 < support_surface_ratio <= 1, f"Should be in [0, 1]."
         self.support_surface_ratio = support_surface_ratio
         log.info(f"Initial EMSs:\n{self.getEMSs()}")
@@ -86,7 +86,7 @@ class Bin:
         x, y, z = item.position  # Should not use the `selected_EMS` because we modify the position of the item.
         w, h, d = item.getDimension()
         self.items.append(item)
-        item_ems: NDArray[np.float_] = np.array([x, y, z, x + w, y + h, z + d])
+        item_ems: NDArray[np.float64] = np.array([x, y, z, x + w, y + h, z + d])
         log.info(f"EMS of the placed items:\n{item_ems.tolist()}, size: {item.getDimension()}")
 
         # Eliminate the remaining EMSs by check whether the EMS is inscribed or overlapped with the current item.
@@ -141,7 +141,7 @@ class Bin:
         log.warning(f"Remaining {len(self.EMSs)} EMSs:\n{self.getEMSs()}")
 
     @staticmethod
-    def checkOverlapped(item_ems: NDArray[np.float_], remaining_EMS: NDArray[np.float_]) -> NDArray[np.bool_]:
+    def checkOverlapped(item_ems: NDArray[np.float64], remaining_EMS: NDArray[np.float64]) -> NDArray[np.bool_]:
         """
         Check whether the remaining EMSs of the bin is overlapped with the placed item.
         :param item_ems: The ems of the placed item.
@@ -154,7 +154,7 @@ class Bin:
         return mask
 
     @staticmethod
-    def checkInscribed(ems1: NDArray[np.float_], ems2: NDArray[np.float_]) -> NDArray[np.bool_]:
+    def checkInscribed(ems1: NDArray[np.float64], ems2: NDArray[np.float64]) -> NDArray[np.bool_]:
         """
         Check whether ems1 is inscribed by ems2. The order of the parameters is important.
         :param ems1: The first EMS.
@@ -169,11 +169,11 @@ class Bin:
         mask: NDArray[np.bool_] = np.any((np.all(diff[:, :, :3] <= 0, axis=2) & np.all(diff[:, :, 3:] >= 0, axis=2)), axis=1)
         return mask
 
-    def getEMSs(self) -> List[np.float_]:
+    def getEMSs(self) -> List[np.float64]:
         """
         Return the remaining EMSs of the bin.
         """
-        remaining_EMSs_list: List[np.float_] = self.EMSs.tolist()
+        remaining_EMSs_list: List[np.float64] = self.EMSs.tolist()
         return remaining_EMSs_list
 
     def calculateUtilizationRate(self) -> float:
@@ -241,7 +241,7 @@ class Bin:
 
         return unfix_point[2], False
 
-    def fixAirPlace(self, item: Item, selected_EMS: NDArray[np.float_]) -> bool:
+    def fixAirPlace(self, item: Item, selected_EMS: NDArray[np.float64]) -> bool:
         """
         Fix the item in the air and check the stability of the placed item.
         :param item: The item to place.
