@@ -79,15 +79,10 @@ class PlacementProcedure:
             # pack the box to the bin & update state information
             assert selected_EMS is not None, f"{selected_EMS = }"
             assert selected_bin_index is not None, f"{selected_bin_index = }"
-            self.bins[selected_bin_index].updateEMS(item, min_vol, min_dim)
+            self.bins[selected_bin_index].updateEMS(item, min_vol, min_dim, self.is_debug)
 
             log.info(f"Add box to bin: {selected_bin_index}")
             log.info(f"EMSs:\n{self.bins[selected_bin_index].getEMSs()}")
-            if self.is_debug:
-                painter = Painter(self.bins[selected_bin_index])
-                fig = painter.plotItemsAndBin(title=self.bins[selected_bin_index].partno, alpha=0.5, write_num=False, fontsize=10)
-                plt = painter.plotRemainedEMS()
-                plt.show()
         log.debug(f"Number of used bins: {self.num_opened_bins}")
 
     def computeDistanceToFrontTopRightCenter(self, item: Item, bin_index: int, sorted_by_z: bool = True) -> List[NDArray[np.float64]]:
@@ -184,6 +179,7 @@ class BRKGA:
         num_elites: int = 12,
         num_mutants: int = 18,
         eliteCProb: float = 0.7,
+        is_debug: bool = False,
     ) -> None:
         # Input
         self.bins: List[Bin] = bins
@@ -202,6 +198,7 @@ class BRKGA:
         assert 0 <= eliteCProb <= 1, f"The value should be between [0, 1]."
         # The prespecified probability which decides the i-th gene is inherited from the elite or the non-elite parents.
         self.eliteCProb: float = eliteCProb
+        self.is_debug = is_debug
 
         # Result
         self.best_solution: NDArray[np.float64] = np.array([])
@@ -221,7 +218,7 @@ class BRKGA:
         bins_list: List[List[Bin]] = []
         unpacked_item_list: List[List[Item]] = []
         for solution in population:
-            decoder = PlacementProcedure(deepcopy(self.bins), deepcopy(self.items), solution)
+            decoder = PlacementProcedure(deepcopy(self.bins), deepcopy(self.items), solution, self.is_debug)
             fitness_list.append(decoder.evaluateSolution())
             bins_list.append(deepcopy(decoder.bins[: decoder.num_opened_bins]))
             unpacked_item_list.append(deepcopy(decoder.unpacked_items))

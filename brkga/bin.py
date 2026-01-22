@@ -75,12 +75,13 @@ class Bin:
         """
         return self.width * self.height * self.depth
 
-    def updateEMS(self, item: Item, min_vol: float, min_dim: float) -> None:
+    def updateEMS(self, item: Item, min_vol: float, min_dim: float, is_debug: bool = False) -> None:
         """
         Update the remaining EMSs of the bin according to the new placed item.
         :param item: The new placed item.
         :param min_vol: Minimal volume of all the unplaced items.
         :param min_dim: Minimal dimension of all the unplaced items.
+        :param is_debug: Whether to plot the placed item and the generated EMS for debug.
         """
         # Place the item into the bin.
         x, y, z = item.position  # Should not use the `selected_EMS` because we modify the position of the item.
@@ -136,7 +137,22 @@ class Bin:
                         self.EMSs = self.EMSs[remaining_EMS_index]
                         if self.EMSs.size > 0:
                             self.EMSs = np.vstack([self.EMSs, new_EMSs])
+                        else:
+                            self.EMSs = new_EMSs
                         log.info(f"Successfully added new EMS:\n{new_EMSs.tolist()}")
+
+                    if is_debug:
+                        from .painter import Painter
+
+                        # For debug, all ems in the `self.EMss` should not overlap with each other.
+                        for index, curr_EMS in enumerate(self.EMSs):
+                            left_EMSs = np.vstack([self.EMSs[:index], self.EMSs[index + 1 :]])
+                            mask = self.checkInscribed(np.array([curr_EMS]), left_EMSs)
+                            assert not np.any(mask), f"{curr_EMS=}, touch with the existing EMS:\n{self.EMSs.tolist()}"
+                        painter = Painter(self)
+                        plt = painter.plotItemsAndBin()
+                        plt = painter.plotRemainedEMS()
+                        plt.show()
 
         log.warning(f"Remaining {len(self.EMSs)} EMSs:\n{self.getEMSs()}")
 
