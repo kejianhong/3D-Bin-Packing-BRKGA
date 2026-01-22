@@ -150,7 +150,8 @@ class Bin:
         row, _ = remaining_EMS.shape
         # assert row > 0, f"Row should larger than 0, now [{row = }]."  # FIXME: when the `remaining_EMS` is an empty array, will return an empty array.
         item_ems_repeat = np.tile(item_ems, (row, 1))
-        mask: NDArray[np.bool_] = np.all(item_ems_repeat[:, 3:] >= remaining_EMS[:, :3], axis=1) & np.all(item_ems_repeat[:, :3] <= remaining_EMS[:, 3:], axis=1)
+        # Exclude the "=", otherwise two ems would be considered as overlapped when they have one side in contact with each other.
+        mask: NDArray[np.bool_] = np.all(item_ems_repeat[:, 3:] > remaining_EMS[:, :3], axis=1) & np.all(item_ems_repeat[:, :3] < remaining_EMS[:, 3:], axis=1)
         return mask
 
     @staticmethod
