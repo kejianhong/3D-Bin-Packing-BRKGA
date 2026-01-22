@@ -90,13 +90,14 @@ class PlacementProcedure:
                 plt.show()
         log.debug(f"Number of used bins: {self.num_opened_bins}")
 
-    def computeDistanceToFrontTopRightCenter(self, item: Item, bin_index: int) -> List[NDArray[np.float_]]:
+    def computeDistanceToFrontTopRightCenter(self, item: Item, bin_index: int, sorted_by_z: bool = True) -> List[NDArray[np.float64]]:
         """
         Compute the distance of the item to the front-top-right corner of the bin according to the DFRTC algorithm.
         However, the item may flow in the air. Therefore, return the available EMS as soon as possible once we find one.
         Because we will fix the position of the item after then.
         :param item: The item to place.
         :param bin_index: The index of the bin used to pack the item.
+        :param sorted_by_z: sorted the available EMS by the height or by the volume.
         :return: If the item can place into the bin, return the corresponding EMS of the used bin.
         """
         available_EMSs: List[NDArray[np.float64]] = []
@@ -108,8 +109,8 @@ class PlacementProcedure:
                 item.rotation_type = rt_type
                 if self.putItemIntoBin(item, unplaced_items):
                     available_EMSs.append(unplaced_items)
-                    break  # If we want to find all available EMSs, the comment this line.
-        sorted_available_EMSs = sorted(available_EMSs, key=lambda x: np.prod(x[3:] - x[:3]), reverse=True)
+                    break  # If we want to find all available EMSs, then comment this line.
+        sorted_available_EMSs = sorted(available_EMSs, key=lambda x: np.prod(x[3:] - x[:3]) if not sorted_by_z else x[2], reverse=True)
         return sorted_available_EMSs
 
     def selectBoxOrientation(self, vector_of_box_orientation: float, item: Item, selected_EMS: NDArray[np.float64]) -> None:
