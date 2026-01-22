@@ -3,6 +3,7 @@ from typing import Any, Optional
 import matplotlib.pyplot as plt  # type: ignore[import]
 import mpl_toolkits.mplot3d.art3d as art3d  # type: ignore[import]
 import numpy as np
+from matplotlib import colormaps
 from matplotlib.axes import Axes  # type: ignore[import]
 from matplotlib.patches import Circle, Rectangle  # type: ignore[import]
 
@@ -150,10 +151,11 @@ class Painter:
         # Plot bin.
         self._plotCube(axGlob, 0, 0, 0, self.width, self.height, self.depth, color="black", mode=1, linewidth=2)
 
-        for ems in self.remainedEMSs:
+        for index, ems in enumerate(self.remainedEMSs):
             x, y, z = ems[:3]
             [w, h, d] = ems[3:] - ems[:3]
-            self._plotCube(axGlob, x, y, z, w, h, d, color="red", mode=2, fontsize=fontsize, alpha=alpha)
+            color = colormaps["rainbow"](1 - ((index + 0.5) / len(self.remainedEMSs)) % 1.0)[:3]  # "rainbow" is from purple to red
+            self._plotCube(axGlob, x, y, z, w, h, d, color=np.r_[color, 0.7], mode=2, fontsize=fontsize, alpha=alpha)
 
         plt.title(title)
         self.setAxesEqual(axGlob)
