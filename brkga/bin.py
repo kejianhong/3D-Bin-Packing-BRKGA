@@ -120,7 +120,7 @@ class Bin:
             big_vol_EMS_index = np.prod(new_EMSs_size, axis=1) >= (min_vol if min_vol > 0 else DELTA)  # Do not add new EMS smaller than the volume of remaining items.
             big_dim_EMS_index = np.min(new_EMSs_size, axis=1) >= (min_dim if min_dim > 0 else DELTA)  # Do not add new EMS whose smallest dimension is smaller than the smallest dimension of remaining items.
             log.debug(f"Small volume EMS:\n{new_EMSs[np.logical_not(big_vol_EMS_index)]}")
-            log.debug(f"Small dimension EMS:\n{new_EMSs[np.logical_not(big_vol_EMS_index)]}")
+            log.debug(f"Small dimension EMS:\n{new_EMSs[np.logical_not(big_dim_EMS_index)]}")
             index = big_vol_EMS_index & big_dim_EMS_index
             new_EMSs = new_EMSs[index]
 
@@ -182,6 +182,9 @@ class Bin:
         assert row1 * row2 > 0, f"All shape should larger than 0: {row1 = }, {row2 = }."
         ems1_repeat = np.repeat(ems1, row2, axis=0).reshape(row1, row2, -1)
         ems2_repeat = np.tile(ems2, (row1, 1, 1))
+        # Assume row1=2, row2=3
+        # ems1_repeat = [ems1[1,:],ems1[1,:],ems1[1,:];ems1[2,:],ems1[2,;],ems1[2,:]]
+        # ems2_repeat = [ems2[1,:],ems2[2,:],ems2[3,:];ems2[1,:],ems2[2,;],ems2[3,:]]
         diff = ems2_repeat - ems1_repeat
         mask: NDArray[np.bool_] = np.any((np.all(diff[:, :, :3] <= 0, axis=2) & np.all(diff[:, :, 3:] >= 0, axis=2)), axis=1)
         return mask

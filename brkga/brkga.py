@@ -195,6 +195,7 @@ class BRKGA:
         self.num_gene: int = 2 * self.num_item
         self.num_elites: int = int(num_elites)
         self.num_mutants: int = int(num_mutants)
+        assert self.num_individuals > self.num_elites + self.num_mutants, "Can not satisfy the constraint: individuals > elites + mutants"
         assert 0 <= eliteCProb <= 1, f"The value should be between [0, 1]."
         # The prespecified probability which decides the i-th gene is inherited from the elite or the non-elite parents.
         self.eliteCProb: float = eliteCProb
