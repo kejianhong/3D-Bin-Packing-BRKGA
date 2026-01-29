@@ -123,36 +123,34 @@ class Bin:
             log.debug(f"Small dimension EMS:\n{new_EMSs[np.logical_not(big_dim_EMS_index)]}")
             index = big_vol_EMS_index & big_dim_EMS_index
             new_EMSs = new_EMSs[index]
+            assert np.all(new_EMSs_size[index] > 0), f"All size should be larger than 0: {new_EMSs_size[index].tolist()}."
 
             if new_EMSs.size > 0:
                 # Eliminate new EMSs which are totally inscribed by the remaining EMSs.
                 log.debug(f"New available EMSs candidates:\n{new_EMSs.tolist()}")
-                if self.EMSs.size == 0:
-                    self.EMSs = new_EMSs
-                else:
-                    new_EMSs_index = np.logical_not(self.checkInscribed(new_EMSs, self.EMSs))
-                    new_EMSs = new_EMSs[new_EMSs_index]
-                    if new_EMSs.size > 0:
-                        remaining_EMS_index = np.logical_not(self.checkInscribed(self.EMSs, new_EMSs))
-                        self.EMSs = self.EMSs[remaining_EMS_index]
-                        if self.EMSs.size > 0:
-                            self.EMSs = np.vstack([self.EMSs, new_EMSs])
-                        else:
-                            self.EMSs = new_EMSs
-                        log.info(f"Successfully added new EMS:\n{new_EMSs.tolist()}")
+                new_EMSs_index = np.logical_not(self.checkInscribed(new_EMSs, self.EMSs))
+                new_EMSs = new_EMSs[new_EMSs_index]
+                if new_EMSs.size > 0:
+                    remaining_EMS_index = np.logical_not(self.checkInscribed(self.EMSs, new_EMSs))
+                    self.EMSs = self.EMSs[remaining_EMS_index]
+                    if self.EMSs.size > 0:
+                        self.EMSs = np.vstack([self.EMSs, new_EMSs])
+                    else:
+                        self.EMSs = new_EMSs
+                    log.info(f"Successfully added new EMS:\n{new_EMSs.tolist()}")
 
-                    if is_debug:
-                        from .painter import Painter
+                if is_debug:
+                    from .painter import Painter
 
-                        # For debug, all ems in the `self.EMss` should not overlap with each other.
-                        for index, curr_EMS in enumerate(self.EMSs):
-                            left_EMSs = np.vstack([self.EMSs[:index], self.EMSs[index + 1 :]])
-                            mask = self.checkInscribed(np.array([curr_EMS]), left_EMSs)
-                            assert not np.any(mask), f"{curr_EMS=}, touch with the existing EMS:\n{self.EMSs.tolist()}"
-                        painter = Painter(self)
-                        plt = painter.plotItemsAndBin()
-                        plt = painter.plotRemainedEMS()
-                        plt.show()
+                    # For debug, all ems in the `self.EMss` should not overlap with each other.
+                    for index, curr_EMS in enumerate(self.EMSs):
+                        left_EMSs = np.vstack([self.EMSs[:index], self.EMSs[index + 1 :]])
+                        mask = self.checkInscribed(np.array([curr_EMS]), left_EMSs)
+                        assert not np.any(mask), f"{curr_EMS=}, touch with the existing EMS:\n{self.EMSs.tolist()}"
+                    # painter = Painter(self)
+                    # plt = painter.plotItemsAndBin()
+                    # plt = painter.plotRemainedEMS()
+                    # plt.show()
 
         log.warning(f"Remaining {len(self.EMSs)} EMSs:\n{self.getEMSs()}")
 
@@ -179,7 +177,11 @@ class Bin:
         """
         row1, _ = ems1.shape
         row2, _ = ems2.shape
-        assert row1 * row2 > 0, f"All shape should larger than 0: {row1 = }, {row2 = }."
+        if row1 == 0:
+            return np.array([], dtype=bool)
+        if row2 == 0:
+            return np.array([False] * row1, dtype=bool)
+        # assert row1 * row2 > 0, f"All shape should larger than 0: {row1 = }, {row2 = }."
         ems1_repeat = np.repeat(ems1, row2, axis=0).reshape(row1, row2, -1)
         ems2_repeat = np.tile(ems2, (row1, 1, 1))
         # Assume row1=2, row2=3
