@@ -95,14 +95,15 @@ def example0() -> None:
         num_elites=int(len(items) / 2),
         num_mutants=int(len(items) / 4),
         eliteCProb=0.7,
+        is_debug=True,
     )
     brkga.fit(patient=7)
     stop_time = time.time()
 
-    PrintPackingResult(brkga)
+    PrintPackingResult(brkga, filename=("example0_result", "example0_ems"))
     log.warning(f"Used time: {stop_time - start_time}")
     log.warning(f"Best fitness: {brkga.best_fitness}")
-    PlotGenerationProcess(brkga.fitness_mean_history, brkga.fitness_min_history)
+    PlotGenerationProcess(brkga.fitness_mean_history, brkga.fitness_min_history, filename="example0_generation_process")
 
 
 if __name__ == "__main__":

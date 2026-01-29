@@ -110,7 +110,7 @@ class Painter:
         if text:
             ax.text((x + dx / 2), (y + dy / 2), (z + dz / 2), str(text), color="black", fontsize=fontsize, ha="center", va="center")
 
-    def plotItemsAndBin(self, title: str = "", alpha: float = 0.2, write_num: bool = False, fontsize: int = 10) -> Any:
+    def plotItemsAndBin(self, title: str = "", alpha: float = 0.2, write_num: bool = False, fontsize: int = 10, filename: Optional[str] = None) -> Any:
         """
         Side effective. Plot the bin and the items it contains.
         """
@@ -139,9 +139,11 @@ class Painter:
 
         plt.title(title)
         self.setAxesEqual(axGlob)
+        if filename is not None:
+            plt.savefig(filename)
         return plt
 
-    def plotRemainedEMS(self, title: str = "Remain EMS", alpha: float = 0.2, fontsize: int = 10) -> Any:
+    def plotRemainedEMS(self, title: str = "Remain EMS", alpha: float = 0.2, fontsize: int = 10, filename: Optional[str] = None) -> Any:
         """
         Side effective. Plot the bin and the items it contains.
         """
@@ -159,6 +161,8 @@ class Painter:
 
         plt.title(title)
         self.setAxesEqual(axGlob)
+        if filename is not None:
+            plt.savefig(filename)
         return plt
 
     @staticmethod

@@ -99,10 +99,10 @@ def example4() -> None:
     brkga.fit(patient=5)
     stop_time = time.time()
 
-    PrintPackingResult(brkga)
+    PrintPackingResult(brkga, filename=("example4_result", "example4_ems"))
     log.warning(f"Used time: {stop_time - start_time}")
     log.warning(f"Best fitness: {brkga.best_fitness}")
-    PlotGenerationProcess(brkga.fitness_mean_history, brkga.fitness_min_history)
+    PlotGenerationProcess(brkga.fitness_mean_history, brkga.fitness_min_history, filename="example4_generation_process")
 
 
 if __name__ == "__main__":

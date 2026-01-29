@@ -36,12 +36,11 @@ def example5() -> None:
     brkga.fit(patient=7)
     stop_time = time.time()
 
-    PrintPackingResult(brkga)
+    PrintPackingResult(brkga, filename=("example5_result", "example5_ems"))
     # PlacementProcedure(brkga.bins, brkga.items, brkga.best_solution, True)
     log.warning(f"Used time: {stop_time - start_time}")
     log.warning(f"Best fitness: {brkga.best_fitness}")
-    PlotGenerationProcess(brkga.fitness_mean_history, brkga.fitness_min_history)
-
+    PlotGenerationProcess(brkga.fitness_mean_history, brkga.fitness_min_history, filename="example5_generation_process")
 
 if __name__ == "__main__":
     log.setLevel(logging.DEBUG)
